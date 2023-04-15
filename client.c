@@ -15,21 +15,22 @@ void exit_me(int sockfd)
     printf("exiting..\n");
     exit(0);
 }
-void tcp_connect(int sockfd, char *ip_add, int port)
-{
+
+void tcp_connect(int sockfd, char *ip_add, int port) {
     struct sockaddr_in servaddr;
-    bzero(&servaddr, sizeof(servaddr));
+    memset(&servaddr, 0, sizeof(servaddr));
+
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(port);
 
-    
-    if (inet_pton(AF_INET, ip_add, &servaddr.sin_addr) <= 0) {
-        fprintf(stderr, "gethostbyname error for %s", ip_add);
+    if (inet_pton(AF_INET, ip_add, &servaddr.sin_addr) != 1) {
+        fprintf(stderr, "Error: Invalid IP address\n");
+        exit(EXIT_FAILURE);
     }
 
-    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
         perror("connect error");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }
 void *read_user_write_socket(void *arg)
@@ -39,26 +40,27 @@ void *read_user_write_socket(void *arg)
 
     while (1)
     {
+        // read input from user
         if (fgets(input, MAXLINE, stdin) != NULL)
         {
+            // remove newline character at end of input
             input[strcspn(input, "\n")] = '\0';
-            char *new_input = (char*) malloc(strlen(input) + 1);
-            strcpy(new_input,input);
-            char *token = strtok(new_input, " ");
-            if (token != NULL)
+
+            // send input to server
+            if (write(sockfd, input, strlen(input)) < 0) {
+                perror("write error");
+                exit(1);
+            }
+
+            // check if input is "exit"
+            if (strcmp(input, "exit") == 0)
             {
-                if (strcmp(token, "exit") == 0)
-                {
-                    exit_me(sockfd);
-                }
-                else
-                {
-                    write(sockfd, input, strlen(input));
-                }
+                exit_me(sockfd);
             }
         }
     }
 }
+
 void *read_socket_write_user(void *arg)
 {
     int sockfd = *(int *)arg;
