@@ -42,7 +42,7 @@ void *read_user_write_socket(void *arg)
         if (fgets(input, MAXLINE, stdin) != NULL)
         {
             input[strcspn(input, "\n")] = '\0';
-            char new_input = (char)malloc(strlen(input) + 1);
+            char *new_input = (char*) malloc(strlen(input) + 1);
             strcpy(new_input,input);
             char *token = strtok(new_input, " ");
             if (token != NULL)
