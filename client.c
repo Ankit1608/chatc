@@ -9,14 +9,14 @@
 #define MAXLINE 1000
 #define LISTENQ 1024
 
-void exit_me(int sockfd)
+void exitClientFromCode(int sockfd)
 {
     close(sockfd);
     printf("exiting..\n");
     exit(0);
 }
 
-void tcp_connect(int sockfd, char *ip_add, int port) {
+void tcpConnectionForClient(int sockfd, char *ip_add, int port) {
     struct sockaddr_in servaddr;
     memset(&servaddr, 0, sizeof(servaddr));
 
@@ -33,12 +33,12 @@ void tcp_connect(int sockfd, char *ip_add, int port) {
         exit(EXIT_FAILURE);
     }
 }
-void *read_user_write_socket(void *arg)
+void *readClinetAndWriteInServer(void *arg)
 {
     int sockfd = *(int *)arg;
     char input[MAXLINE];
 
-    while (1)
+    X:
     {
         // read input from user
         if (fgets(input, MAXLINE, stdin) != NULL)
@@ -55,52 +55,114 @@ void *read_user_write_socket(void *arg)
             // check if input is "exit"
             if (strcmp(input, "exit") == 0)
             {
-                exit_me(sockfd);
+                exitClientFromCode(sockfd);
             }
+        }
+        goto X;
+    }
+
+}
+
+void *readFromServerWriteToUser(void *arg)
+{
+    int sockfd = *(int *)arg;
+    ssize_t nread;
+    char buf[MAXLINE];
+
+    while (1)
+    {
+        nread = recv(sockfd, buf, MAXLINE, 0);
+
+        if (nread < 0)
+        {
+            perror("recv error");
+            exit(1);
+        }
+        else if (nread == 0)
+        {
+            printf("Server closed the connection\n");
+            exit(0);
+        }
+        else
+        {
+            buf[nread] = '\0';
+            printf("%s\n", buf);
+            fflush(stdout);
         }
     }
 }
 
-void *read_socket_write_user(void *arg)
+
+
+int createSocket(int domain, int type, int protocol)
 {
-    int sockfd = *(int *)arg;
-    int n;
-    char recvline[MAXLINE + 1];
+    int sockfd;
+    if ((sockfd = socket(domain, type, protocol)) < 0)
+        fprintf(stderr, "socket error");
+    return sockfd;
+}
 
-    while ((n = read(sockfd, recvline, MAXLINE)) > 0)
-    {
-        recvline[n] = '\0'; 
-        fputs(recvline, stdout);
-        fputs("\n", stdout);
-        fflush(stdout);
+void connectToServer(int sockfd, char *ip_address, int port)
+{
+    struct sockaddr_in servaddr;
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(port);
+
+    if (inet_pton(AF_INET, ip_address, &servaddr.sin_addr) <= 0) {
+        fprintf(stderr, "gethostbyname error for %s", ip_address);
     }
 
-    if (n == 0)
-    {
-        printf("Server closed the connection\n");
-        exit(0);
-    }
-    else
-    {
-        perror("read error");
+    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+        perror("connect error");
         exit(1);
     }
 }
+
+void createClientThread(pthread_t *thread, int sockfd)
+{
+    if (pthread_create(thread, NULL, readClinetAndWriteInServer, &sockfd) != 0)
+        fprintf(stderr, "pthread_create error");
+}
+
+void createSocketThread(pthread_t *thread, int sockfd)
+{
+    if (pthread_create(thread, NULL, readFromServerWriteToUser, &sockfd) != 0)
+        fprintf(stderr, "pthread_create error");
+}
+
+void joinThread(pthread_t thread)
+{
+    if (pthread_join(thread, NULL) != 0)
+        fprintf(stderr, "pthread_join error");
+}
+
+void closeSocket(int sockfd)
+{
+    if (close(sockfd) != 0)
+        fprintf(stderr, "close error");
+}
+
+
 int main(int argc, char **argv)
 {
     int sockfd;
-    pthread_t tuser, tsocket;
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        fprintf(stderr, "socket error");
-    tcp_connect(sockfd, "127.0.0.1", 1234);
-    if (pthread_create(&tuser, NULL, read_user_write_socket, &sockfd) != 0)
-        fprintf(stderr, "pthread_create error");
-    if (pthread_create(&tsocket, NULL, read_socket_write_user, &sockfd) != 0)
-        fprintf(stderr, "pthread_create error");
-    if (pthread_join(tuser, NULL) != 0)
-        fprintf(stderr, "pthread_join error");
-    if (pthread_join(tsocket, NULL) != 0)
-        fprintf(stderr, "pthread_join error");
+    pthread_t user_thread, socket_thread;
 
-    exit_me(sockfd);
+    // create a socket
+    sockfd = createSocket(AF_INET, SOCK_STREAM, 0);
+    // connect to server
+    connectToServer(sockfd, "127.0.0.1", 1234);
+    // create user thread to read input and send to server
+    createClientThread(&user_thread, sockfd);
+    // create socket thread to read server response and print to user
+    createSocketThread(&socket_thread, sockfd);
+    // join threads
+    joinThread(user_thread);
+    joinThread(socket_thread);
+
+    // close socket and exit
+    closeSocket(sockfd);
+    return 0;
 }
+
