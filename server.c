@@ -28,26 +28,40 @@ int listenfd, connfd, maxfd, maxi = -1;
 void handle_sigint(int sig)
 {
     printf("SIGINT! Closing all the connections\n");
-     for (int i = 0; i <= maxi; i++)
-    {
-        if (clients[i].connfd > 0)
-        {
+    int i = 0;
+    while (i <= maxi) {
+        if (clients[i].connfd > 0) {
             close(clients[i].connfd);
         }
+        i++;
     }
-
-    
     close(listenfd);
-
-   
     exit(0);
 }
 
+char **split_string(char *str, char *delimiter, int *num_tokens);
 
+char **allocate_tokens_array(void)
+{
+    return malloc(MAX_TOKENS * sizeof(char *));
+}
+
+void free_tokens_array(char **tokens)
+{
+    for (int i = 0; i < MAX_TOKENS; i++)
+    {
+        if (tokens[i] != NULL)
+        {
+            free(tokens[i]);
+            tokens[i] = NULL;
+        }
+    }
+    free(tokens);
+}
 
 char **split_string(char *str, char *delimiter, int *num_tokens)
 {
-    char **tokens = malloc(MAX_TOKENS * sizeof(char *));
+    char **tokens = allocate_tokens_array();
     char *token;
     int i = 0;
 
@@ -61,37 +75,27 @@ char **split_string(char *str, char *delimiter, int *num_tokens)
     return tokens;
 }
 
+
 char *remove_first_char(char *str)
 {
     size_t len = strlen(str);
-    char *new_str = (char *)malloc(len);
+    char *new_str = malloc(len); // Allocate space for new string including null terminator
     if (new_str != NULL)
     {
-        memcpy(new_str, str + 1, len);
+        memcpy(new_str, str + 1, len); // Copy the characters from str to new_str, starting from index 1
+        new_str[len - 1] = '\0'; // Add null terminator at the end of new_str
     }
     return new_str;
 }
-
-void send_message(char *client_name, char *message, int dest_fd)
-{
-    int i, is_broadcast = 0;
-    if (strcmp(client_name, "-1") == 0)
-        is_broadcast = 1;
-    
+void send_broadcast(char *message) {
+    int i;
     fflush(stdout);
-
-    for (i = 0; i <= maxi; i++)
-    {
-        if (clients[i].connfd >= 0 && ((is_broadcast && clients[i].logged_in) || strcmp(clients[i].name, client_name) == 0 || clients[i].connfd == dest_fd))
-        {
+    for (i = 0; i <= maxi; i++) {
+        if (clients[i].connfd >= 0 && clients[i].logged_in) {
             int bytes_sent = send(clients[i].connfd, message, strlen(message), 0);
-            if (bytes_sent == -1)
-            {
-                perror("Error sending message");
-                
-            }
-            else
-            {
+            if (bytes_sent == -1) {
+                perror("Error sending broadcast message");
+            } else {
                 printf("Sent %d bytes to client %s\n", bytes_sent, clients[i].name);
                 fflush(stdout);
             }
@@ -99,68 +103,90 @@ void send_message(char *client_name, char *message, int dest_fd)
     }
 }
 
-void interpret_request(int ind, char *message)
-{
+void send_direct_message(char *client_name, char *message) {
+    int i;
+    fflush(stdout);
+    for (i = 0; i <= maxi; i++) {
+        if (clients[i].connfd >= 0 && strcmp(clients[i].name, client_name) == 0) {
+            int bytes_sent = send(clients[i].connfd, message, strlen(message), 0);
+            if (bytes_sent == -1) {
+                perror("Error sending direct message");
+            } else {
+                printf("Sent %d bytes to client %s\n", bytes_sent, clients[i].name);
+                fflush(stdout);
+            }
+        }
+    }
+}
 
+void send_message(char *client_name, char *message, int dest_fd) {
+    if (strcmp(client_name, "-1") == 0) {
+        send_broadcast(message);
+    } else if (dest_fd > 0) {
+        int bytes_sent = send(dest_fd, message, strlen(message), 0);
+        if (bytes_sent == -1) {
+            perror("Error sending direct message");
+        } else {
+            printf("Sent %d bytes to client with fd %d\n", bytes_sent, dest_fd);
+            fflush(stdout);
+        }
+    } else {
+        send_direct_message(client_name, message);
+    }
+}
+
+void login(int ind, char **tokens) {
+    if (clients[ind].logged_in == 1) {
+        // do nothing if already logged in
+    } else {
+        strcpy(clients[ind].name, tokens[1]);
+        clients[ind].logged_in = 1;
+    }
+    printf("Loggedin\n");
+}
+
+void logout(int ind) {
+    if (clients[ind].logged_in == 0) {
+        // do nothing if not logged in
+    } else {
+        clients[ind].logged_in = 0;
+    }
+    printf("Loggedout\n");
+}
+
+void interpret_request(int ind, char *message) {
     char delimiter[] = " ";
     int num_tokens;
     char *new_message = (char *)malloc(strlen(message) + 1);
     strcpy(new_message, message);
     char **tokens = split_string(message, delimiter, &num_tokens);
-    
 
-    if (strcmp(tokens[0], "login") == 0)
-    {
-        if (clients[ind].logged_in == 1)
-        {
-            
-        }
-        else
-        {
-            strcpy(clients[ind].name, tokens[1]);
-            clients[ind].logged_in = 1;
-            
-        }
-        printf("Loggedin\n");
-       
-       
-    }
-    else if (strcmp(tokens[0], "logout") == 0)
-    {
-
-        if (clients[ind].logged_in == 0)
-        {
-           
-        }
-        else
-        {
-            clients[ind].logged_in = 0;
-           
-        }
-        printf("Loggedout\n");
-    }
-    else if (strcmp(tokens[0], "chat") == 0)
-    {
-
-        if (clients[ind].logged_in == 0)
-        {
+    if (strcmp(tokens[0], "login") == 0) {
+        login(ind, tokens);
+    } else if (strcmp(tokens[0], "logout") == 0) {
+        logout(ind);
+    } else if (strcmp(tokens[0], "chat") == 0) {
+        if (clients[ind].logged_in == 0) {
             printf("Not logged in\n");
-            
-        }
-        else
-        {
-
+        } else {
             if (tokens[1][0] == '@')
                 send_message(remove_first_char(tokens[1]), new_message, -1);
             else
                 send_message("-1", new_message, -1);
         }
+    } else {
+        printf("wrong command\n");
     }
-    else
+}
+
+
+void set_socket_options(int sockfd)
+{
+    int reuse = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse)) < 0)
     {
-       
-       printf("wrong command\n");
-       
+        perror("setsockopt(SO_REUSEADDR) failed");
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -170,13 +196,33 @@ int bind_and_listen(int port)
     struct sockaddr_in servaddr, local_addr;
     char hostname[1024];
     struct hostent *he;
+    
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listenfd < 0)
+    {
+        perror("socket() failed");
+        exit(EXIT_FAILURE);
+    }
+    
+    set_socket_options(listenfd);
+    
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(port);
-    bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
-    listen(listenfd, LISTENQ);
+    
+    if (bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    {
+        perror("bind() failed");
+        exit(EXIT_FAILURE);
+    }
+    
+    if (listen(listenfd, LISTENQ) < 0)
+    {
+        perror("listen() failed");
+        exit(EXIT_FAILURE);
+    }
+    
     gethostname(hostname, 1024);
     printf("here ir is : %s",hostname);
     he = gethostbyname(hostname);
@@ -186,9 +232,9 @@ int bind_and_listen(int port)
     printf("Hostname: %s\n", he->h_name);
     printf("IP address: %s\n", inet_ntoa(*((struct in_addr *)he->h_addr)));
     printf("Assigned port number: %d\n", ntohs(local_addr.sin_port));
+    
     return listenfd;
 }
-
 int main(int argc, char **argv)
 {
 
@@ -199,8 +245,6 @@ int main(int argc, char **argv)
     fd_set allset, rset;
     FD_ZERO(&allset);
     signal(SIGINT, handle_sigint);
-
-    
 
     listenfd = bind_and_listen(1234);
 
@@ -216,8 +260,10 @@ int main(int argc, char **argv)
     for (;;)
     {
         rset = allset;
-        // should return something
-        select(maxfd + 1, &rset, NULL, NULL, NULL);
+        if (select(maxfd + 1, &rset, NULL, NULL, NULL) < 0) {
+            perror("select error");
+            exit(EXIT_FAILURE);
+        }
 
         if (FD_ISSET(listenfd, &rset))
         {
@@ -236,7 +282,7 @@ int main(int argc, char **argv)
             if (i == FD_SETSIZE)
             {
                 fprintf(stderr, "too many clients\n");
-                exit(1);
+                exit(EXIT_FAILURE);
             }
 
             FD_SET(connfd, &allset);
@@ -286,5 +332,4 @@ int main(int argc, char **argv)
             }
         }
     }
-    return 0;
 }
