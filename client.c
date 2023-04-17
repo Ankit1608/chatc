@@ -130,7 +130,6 @@ int main(int argc, char **argv)
     pthread_join(tuser, NULL) != 0 ? (perror("pthread_join error"), exit(1)) : 0;
     pthread_join(tsocket, NULL) != 0 ? (perror("pthread_join error"), exit(1)) : 0;
 
-
     // Close socket and exit program
     quitApplication(sockfd);
 }
