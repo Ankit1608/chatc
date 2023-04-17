@@ -13,7 +13,6 @@
 #define MAX_TOKENS 1000
 #define LISTENQ 1024
 
-
 typedef struct
 {
     int connectionFileDescriptor;
@@ -72,6 +71,7 @@ char *shiftLeft(char *str)
     }
     return new_str;
 }
+
 void sendBroadCast(char *message) {
     int i;
     fflush(stdout);
@@ -81,7 +81,7 @@ void sendBroadCast(char *message) {
             if (bytes_sent == -1) {
                 perror("Error sending broadcast message");
             } else {
-                printf("Sent %d bytes to client %s\n", bytes_sent, clients[i].name);
+                printf("%d bytes sent to client %s\n", bytes_sent, clients[i].name);
                 fflush(stdout);
             }
         }
@@ -97,7 +97,7 @@ void sendDM(char *client_name, char *message) {
             if (bytes_sent == -1) {
                 perror("Error sending direct message");
             } else {
-                printf("Sent %d bytes to client %s\n", bytes_sent, clients[i].name);
+                printf("%d bytes sent to client %s\n", bytes_sent, clients[i].name);
                 fflush(stdout);
             }
         }
@@ -112,7 +112,7 @@ void sendM(char *client_name, char *message, int dest_fd) {
         if (bytes_sent == -1) {
             perror("Error sending direct message");
         } else {
-            printf("Sent %d bytes to client with fd %d\n", bytes_sent, dest_fd);
+            printf("%d bytes sent to client with %d\n", bytes_sent, dest_fd);
             fflush(stdout);
         }
     } else {
@@ -127,7 +127,7 @@ void login(int ind, char **tokens) {
         strcpy(clients[ind].name, tokens[1]);
         clients[ind].signnedIn = 1;
     }
-    printf("Loggedin\n");
+    printf("Signedin\n");
 }
 
 void logout(int ind) {
@@ -136,7 +136,7 @@ void logout(int ind) {
     } else {
         clients[ind].signnedIn = 0;
     }
-    printf("Loggedout\n");
+    printf("Signedin\n");
 }
 
 void processReq(int ind, char *message) {
@@ -152,7 +152,7 @@ void processReq(int ind, char *message) {
         logout(ind);
     } else if (strcmp(tokens[0], "chat") == 0) {
         if (clients[ind].signnedIn == 0) {
-            printf("Not logged in\n");
+            printf("Not Signned in\n");
         } else {
             if (tokens[1][0] == '@')
                 sendM(shiftLeft(tokens[1]), new_message, -1);
@@ -160,7 +160,7 @@ void processReq(int ind, char *message) {
                 sendM("-1", new_message, -1);
         }
     } else {
-        printf("wrong command\n");
+        printf("Invalid Command\n");
     }
 }
 
@@ -209,14 +209,14 @@ int setupServer(int port)
     }
     
     gethostname(hostname, 1024);
-    printf("here ir is : %s",hostname);
+    printf("host is : %s",hostname);
     he = gethostbyname(hostname);
 
     socklen_t local_addr_len = sizeof(local_addr);
     getsockname(listenfd, (struct sockaddr *)&local_addr, &local_addr_len);
-    printf("Hostname: %s\n", he->h_name);
-    printf("IP address: %s\n", inet_ntoa(*((struct in_addr *)he->h_addr)));
-    printf("Assigned port number: %d\n", ntohs(local_addr.sin_port));
+    printf("Host: %s\n", he->h_name);
+    printf("IP: %s\n", inet_ntoa(*((struct in_addr *)he->h_addr)));
+    printf("Port number: %d\n", ntohs(local_addr.sin_port));
     
     return listenfd;
 }
@@ -266,7 +266,7 @@ int main(int argc, char **argv)
 
             if (i == FD_SETSIZE)
             {
-                fprintf(stderr, "too many clients\n");
+                fprintf(stderr, "Maximum client limit reached.\n");
                 exit(EXIT_FAILURE);
             }
 
@@ -300,7 +300,7 @@ int main(int argc, char **argv)
 
                 if ((n = read(connectionFileDescriptor, buff, MAXLINE)) == 0)
                 {
-                    printf("client closed connection: %s, port %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
+                    printf("user closed connection: %s, port %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
 
                     FD_CLR(connectionFileDescriptor, &allset);
                     clients[i].connectionFileDescriptor = -1;
@@ -310,7 +310,6 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-
                     processReq(i, buff);
                     fflush(stdout);
                 }
