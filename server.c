@@ -314,7 +314,7 @@ int main()
                 max = i;
             }
 
-            printf("new client: %s, port %d, maxi is %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), max);
+            printf("new client: %s, port %d, clientNumber is %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), max);
         }
 
         for (i = 0; i <= max; i++)

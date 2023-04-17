@@ -9,33 +9,33 @@
 #define MAXLINE 1000
 #define LISTENQ 1024
 
-void exitClientFromCode(int sockfd)
+void exitClientFromCode(int socketFdConnection)
 {
-    close(sockfd);
+    close(socketFdConnection);
     printf("exiting..\n");
     exit(0);
 }
 
-void tcpConnectionForClient(int sockfd, char *ip_add, int port) {
+void tcpConnectionForClient(int socketFdConnection, char *ipAddress, int port) {
     struct sockaddr_in servaddr;
     memset(&servaddr, 0, sizeof(servaddr));
 
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(port);
 
-    if (inet_pton(AF_INET, ip_add, &servaddr.sin_addr) != 1) {
+    if (inet_pton(AF_INET, ipAddress, &servaddr.sin_addr) != 1) {
         fprintf(stderr, "Error: Invalid IP address\n");
         exit(EXIT_FAILURE);
     }
 
-    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
+    if (connect(socketFdConnection, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
         perror("connect error");
         exit(EXIT_FAILURE);
     }
 }
 void *readClinetAndWriteInServer(void *arg)
 {
-    int sockfd = *(int *)arg;
+    int socketFdConnection = *(int *)arg;
     char input[MAXLINE];
 
     X:
@@ -47,7 +47,7 @@ void *readClinetAndWriteInServer(void *arg)
             input[strcspn(input, "\n")] = '\0';
 
             
-            if (write(sockfd, input, strlen(input)) < 0) {
+            if (write(socketFdConnection, input, strlen(input)) < 0) {
                 perror("write error");
                 exit(1);
             }
@@ -55,7 +55,7 @@ void *readClinetAndWriteInServer(void *arg)
             
             if (strcmp(input, "exit") == 0)
             {
-                exitClientFromCode(sockfd);
+                exitClientFromCode(socketFdConnection);
             }
         }
         goto X;
@@ -65,13 +65,13 @@ void *readClinetAndWriteInServer(void *arg)
 
 void *readFromServerWriteToUser(void *arg)
 {
-    int sockfd = *(int *)arg;
+    int socketFdConnection = *(int *)arg;
     ssize_t nread;
-    char buf[MAXLINE];
+    char bufferValue[MAXLINE];
 
     Y:
     {
-        nread = recv(sockfd, buf, MAXLINE, 0);
+        nread = recv(socketFdConnection, bufferValue, MAXLINE, 0);
 
         if (nread < 0)
         {
@@ -85,8 +85,8 @@ void *readFromServerWriteToUser(void *arg)
         }
         else
         {
-            buf[nread] = '\0';
-            printf("%s\n", buf);
+            bufferValue[nread] = '\0';
+            printf("%s\n", bufferValue);
             fflush(stdout);
         }
         goto Y;
@@ -97,13 +97,13 @@ void *readFromServerWriteToUser(void *arg)
 
 int createSocket(int domain, int type, int protocol)
 {
-    int sockfd;
-    if ((sockfd = socket(domain, type, protocol)) < 0)
+    int socketFdConnection;
+    if ((socketFdConnection = socket(domain, type, protocol)) < 0)
         fprintf(stderr, "socket error");
-    return sockfd;
+    return socketFdConnection;
 }
 
-void connectToServer(int sockfd, char *ip_address, int port)
+void connectToServer(int socketFdConnection, char *ip_address, int port)
 {
     struct sockaddr_in servaddr;
     bzero(&servaddr, sizeof(servaddr));
@@ -114,21 +114,21 @@ void connectToServer(int sockfd, char *ip_address, int port)
         fprintf(stderr, "gethostbyname error for %s", ip_address);
     }
 
-    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+    if (connect(socketFdConnection, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         perror("connect error");
         exit(1);
     }
 }
 
-void createClientThread(pthread_t *thread, int sockfd)
+void createClientThread(pthread_t *thread, int socketFdConnection)
 {
-    if (pthread_create(thread, NULL, readClinetAndWriteInServer, &sockfd) != 0)
+    if (pthread_create(thread, NULL, readClinetAndWriteInServer, &socketFdConnection) != 0)
         fprintf(stderr, "pthread_create error");
 }
 
-void createSocketThread(pthread_t *thread, int sockfd)
+void createSocketThread(pthread_t *thread, int socketFdConnection)
 {
-    if (pthread_create(thread, NULL, readFromServerWriteToUser, &sockfd) != 0)
+    if (pthread_create(thread, NULL, readFromServerWriteToUser, &socketFdConnection) != 0)
         fprintf(stderr, "pthread_create error");
 }
 
@@ -138,28 +138,28 @@ void joinThread(pthread_t thread)
         fprintf(stderr, "pthread_join error");
 }
 
-void closeSocket(int sockfd)
+void closeSocket(int socketFdConnection)
 {
-    if (close(sockfd) != 0)
+    if (close(socketFdConnection) != 0)
         fprintf(stderr, "close error");
 }
 
 
 int main(int argc, char **argv)
 {
-    int sockfd;
+    int socketFdConnection;
     pthread_t user_thread, socket_thread;
 
     
-    sockfd = createSocket(AF_INET, SOCK_STREAM, 0);
+    socketFdConnection = createSocket(AF_INET, SOCK_STREAM, 0);
     
-    connectToServer(sockfd, "127.0.0.1", 1234);
-    createClientThread(&user_thread, sockfd);
-    createSocketThread(&socket_thread, sockfd);
+    connectToServer(socketFdConnection, "127.0.0.1", 1234);
+    createClientThread(&user_thread, socketFdConnection);
+    createSocketThread(&socket_thread, socketFdConnection);
     joinThread(user_thread);
     joinThread(socket_thread);
 
-    closeSocket(sockfd);
+    closeSocket(socketFdConnection);
     return 0;
 }
 
