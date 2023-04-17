@@ -175,7 +175,7 @@ int main(int argc, char **argv)
     char line[MAXLINE];
     char *key, *value;
     char *delim = ":";
-    FILE *file = fopen("chat_client_configuration_file", "r");
+    FILE *file = fopen("chat_client configuration_file", "r");
     if (file == NULL) {
         printf("Failed to open file.\n");
         exit(1);

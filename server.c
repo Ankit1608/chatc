@@ -132,6 +132,32 @@ int getCommandType(char* command) {
     }
 }
 
+char* concatWords(char** words, int numWords, int startIndex) {
+    
+    int totalLength = 0;
+    int i = startIndex;
+    while (i < numWords) {
+        totalLength += strlen(words[i]) + 1; 
+        i++;
+    }
+
+    
+    char* result = (char*) malloc(sizeof(char) * (totalLength + 1));
+
+    
+    int index = 0;
+    i = startIndex;
+    while (i < numWords) {
+        strcpy(result + index, words[i]);
+        index += strlen(words[i]);
+        result[index++] = ' '; 
+        i++;
+    }
+
+    result[totalLength] = '\0';
+
+    return result;
+}
 
 
 
@@ -144,7 +170,6 @@ void decodeRequestRecieved(int ind, char *message)
     
     strcpy(newMessage, message);
     
-
     char** tokens = NULL;
     char* token = strtok(message, " "); 
     int count = 0;
@@ -193,15 +218,17 @@ void decodeRequestRecieved(int ind, char *message)
             else
             {
                 if (tokens[1][0] == '@')
-                    sendMessageToSpecificClient(RemoveFirstCharacterFromString(tokens[1]), newMessage, -1);
+                    sendMessageToSpecificClient(RemoveFirstCharacterFromString(tokens[1]),concatWords(tokens,numTokens,2), -1);
                 else
-                    sendMessageToSpecificClient("broadcast", newMessage, -1);
+                    sendMessageToSpecificClient("broadcast", concatWords(tokens,numTokens,1), -1);
             }
             break;
         default:
             printf("wrong command\n");
     }
 }
+
+
 
 
 int bindAndListenServer(int port) {
@@ -274,7 +301,7 @@ int main()
     char line[MAXLINE];
     char *key, *value;
     char *delim = ":";
-    FILE *file = fopen("chat_server_configuration_file", "r");
+    FILE *file = fopen("chat_server configuration_file", "r");
     if (file == NULL) {
         printf("Failed to open file.\n");
         exit(1);
