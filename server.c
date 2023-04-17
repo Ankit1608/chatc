@@ -300,7 +300,7 @@ int main(int argc, char **argv)
     char line[MAXLINE];
     char *key, *value;
     char *delim = ":";
-    FILE *file = fopen("chat_server_configuration_file", "r");
+    FILE *file = fopen("chat_server configuration_file", "r");
     if (file == NULL)
     {
         printf("Failed to open file.\n");
