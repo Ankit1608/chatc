@@ -167,7 +167,6 @@ int main(int argc, char **argv)
 {
     int socketFdConnection;
     pthread_t user_thread, socket_thread;
-
     
     socketFdConnection = createSocket(AF_INET, SOCK_STREAM, 0);
     

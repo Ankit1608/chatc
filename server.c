@@ -232,7 +232,7 @@ int bindAndListenServer(int port) {
         return -1;
     }
 
-    struct hostent *he = gethostbyname(hostname);
+    struct hostent *he = gethostbyname("localhost");
     if (!he) {
         perror("gethostbyname");
         close(listeningFdConnection);
