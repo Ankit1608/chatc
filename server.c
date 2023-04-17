@@ -16,22 +16,22 @@
 
 typedef struct
 {
+    int connectionFileDescriptor;
     char name[50];
-    int connfd;
-    int logged_in;
-} Client;
+    int signnedIn;
+} User;
 
-Client clients[FD_SETSIZE];
-int listenfd, connfd, maxfd, maxi = -1;
+User clients[FD_SETSIZE];
+int listenfd, connectionFileDescriptor, maxfd, maxi = -1;
 
 
-void handle_sigint(int sig)
+void handleTerminationSignal(int sig)
 {
     printf("SIGINT! Closing all the connections\n");
     int i = 0;
     while (i <= maxi) {
-        if (clients[i].connfd > 0) {
-            close(clients[i].connfd);
+        if (clients[i].connectionFileDescriptor > 0) {
+            close(clients[i].connectionFileDescriptor);
         }
         i++;
     }
@@ -39,29 +39,14 @@ void handle_sigint(int sig)
     exit(0);
 }
 
-char **split_string(char *str, char *delimiter, int *num_tokens);
-
-char **allocate_tokens_array(void)
+char **createTokenBuffer(void)
 {
     return malloc(MAX_TOKENS * sizeof(char *));
 }
 
-void free_tokens_array(char **tokens)
+char **parseCommand(char *str, char *delimiter, int *num_tokens)
 {
-    for (int i = 0; i < MAX_TOKENS; i++)
-    {
-        if (tokens[i] != NULL)
-        {
-            free(tokens[i]);
-            tokens[i] = NULL;
-        }
-    }
-    free(tokens);
-}
-
-char **split_string(char *str, char *delimiter, int *num_tokens)
-{
-    char **tokens = allocate_tokens_array();
+    char **tokens = createTokenBuffer();
     char *token;
     int i = 0;
 
@@ -76,23 +61,23 @@ char **split_string(char *str, char *delimiter, int *num_tokens)
 }
 
 
-char *remove_first_char(char *str)
+char *shiftLeft(char *str)
 {
     size_t len = strlen(str);
-    char *new_str = malloc(len); // Allocate space for new string including null terminator
+    char *new_str = malloc(len);
     if (new_str != NULL)
     {
-        memcpy(new_str, str + 1, len); // Copy the characters from str to new_str, starting from index 1
-        new_str[len - 1] = '\0'; // Add null terminator at the end of new_str
+        memcpy(new_str, str + 1, len);
+        new_str[len - 1] = '\0';
     }
     return new_str;
 }
-void send_broadcast(char *message) {
+void sendBroadCast(char *message) {
     int i;
     fflush(stdout);
     for (i = 0; i <= maxi; i++) {
-        if (clients[i].connfd >= 0 && clients[i].logged_in) {
-            int bytes_sent = send(clients[i].connfd, message, strlen(message), 0);
+        if (clients[i].connectionFileDescriptor >= 0 && clients[i].signnedIn) {
+            int bytes_sent = send(clients[i].connectionFileDescriptor, message, strlen(message), 0);
             if (bytes_sent == -1) {
                 perror("Error sending broadcast message");
             } else {
@@ -103,12 +88,12 @@ void send_broadcast(char *message) {
     }
 }
 
-void send_direct_message(char *client_name, char *message) {
+void sendDM(char *client_name, char *message) {
     int i;
     fflush(stdout);
     for (i = 0; i <= maxi; i++) {
-        if (clients[i].connfd >= 0 && strcmp(clients[i].name, client_name) == 0) {
-            int bytes_sent = send(clients[i].connfd, message, strlen(message), 0);
+        if (clients[i].connectionFileDescriptor >= 0 && strcmp(clients[i].name, client_name) == 0) {
+            int bytes_sent = send(clients[i].connectionFileDescriptor, message, strlen(message), 0);
             if (bytes_sent == -1) {
                 perror("Error sending direct message");
             } else {
@@ -119,9 +104,9 @@ void send_direct_message(char *client_name, char *message) {
     }
 }
 
-void send_message(char *client_name, char *message, int dest_fd) {
+void sendM(char *client_name, char *message, int dest_fd) {
     if (strcmp(client_name, "-1") == 0) {
-        send_broadcast(message);
+        sendBroadCast(message);
     } else if (dest_fd > 0) {
         int bytes_sent = send(dest_fd, message, strlen(message), 0);
         if (bytes_sent == -1) {
@@ -131,48 +116,48 @@ void send_message(char *client_name, char *message, int dest_fd) {
             fflush(stdout);
         }
     } else {
-        send_direct_message(client_name, message);
+        sendDM(client_name, message);
     }
 }
 
 void login(int ind, char **tokens) {
-    if (clients[ind].logged_in == 1) {
+    if (clients[ind].signnedIn == 1) {
         // do nothing if already logged in
     } else {
         strcpy(clients[ind].name, tokens[1]);
-        clients[ind].logged_in = 1;
+        clients[ind].signnedIn = 1;
     }
     printf("Loggedin\n");
 }
 
 void logout(int ind) {
-    if (clients[ind].logged_in == 0) {
+    if (clients[ind].signnedIn == 0) {
         // do nothing if not logged in
     } else {
-        clients[ind].logged_in = 0;
+        clients[ind].signnedIn = 0;
     }
     printf("Loggedout\n");
 }
 
-void interpret_request(int ind, char *message) {
+void processReq(int ind, char *message) {
     char delimiter[] = " ";
     int num_tokens;
     char *new_message = (char *)malloc(strlen(message) + 1);
     strcpy(new_message, message);
-    char **tokens = split_string(message, delimiter, &num_tokens);
+    char **tokens = parseCommand(message, delimiter, &num_tokens);
 
     if (strcmp(tokens[0], "login") == 0) {
         login(ind, tokens);
     } else if (strcmp(tokens[0], "logout") == 0) {
         logout(ind);
     } else if (strcmp(tokens[0], "chat") == 0) {
-        if (clients[ind].logged_in == 0) {
+        if (clients[ind].signnedIn == 0) {
             printf("Not logged in\n");
         } else {
             if (tokens[1][0] == '@')
-                send_message(remove_first_char(tokens[1]), new_message, -1);
+                sendM(shiftLeft(tokens[1]), new_message, -1);
             else
-                send_message("-1", new_message, -1);
+                sendM("-1", new_message, -1);
         }
     } else {
         printf("wrong command\n");
@@ -180,7 +165,7 @@ void interpret_request(int ind, char *message) {
 }
 
 
-void set_socket_options(int sockfd)
+void configSocket(int sockfd)
 {
     int reuse = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse)) < 0)
@@ -190,7 +175,7 @@ void set_socket_options(int sockfd)
     }
 }
 
-int bind_and_listen(int port)
+int setupServer(int port)
 {
     int listenfd;
     struct sockaddr_in servaddr, local_addr;
@@ -204,7 +189,7 @@ int bind_and_listen(int port)
         exit(EXIT_FAILURE);
     }
     
-    set_socket_options(listenfd);
+    configSocket(listenfd);
     
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
@@ -244,17 +229,17 @@ int main(int argc, char **argv)
 
     fd_set allset, rset;
     FD_ZERO(&allset);
-    signal(SIGINT, handle_sigint);
+    signal(SIGINT, handleTerminationSignal);
 
-    listenfd = bind_and_listen(1234);
+    listenfd = setupServer(1234);
 
     FD_SET(listenfd, &allset);
     maxfd = listenfd;
 
     for (i = 0; i < FD_SETSIZE; i++)
     {
-        clients[i].connfd = -1;
-        clients[i].logged_in = 0;
+        clients[i].connectionFileDescriptor = -1;
+        clients[i].signnedIn = 0;
     }
 
     for (;;)
@@ -268,13 +253,13 @@ int main(int argc, char **argv)
         if (FD_ISSET(listenfd, &rset))
         {
             clilen = sizeof(cliaddr);
-            connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
+            connectionFileDescriptor = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
 
             for (i = 0; i < FD_SETSIZE; i++)
             {
-                if (clients[i].connfd < 0)
+                if (clients[i].connectionFileDescriptor < 0)
                 {
-                    clients[i].connfd = connfd;
+                    clients[i].connectionFileDescriptor = connectionFileDescriptor;
                     break;
                 }
             }
@@ -285,10 +270,10 @@ int main(int argc, char **argv)
                 exit(EXIT_FAILURE);
             }
 
-            FD_SET(connfd, &allset);
-            if (connfd > maxfd)
+            FD_SET(connectionFileDescriptor, &allset);
+            if (connectionFileDescriptor > maxfd)
             {
-                maxfd = connfd;
+                maxfd = connectionFileDescriptor;
             }
 
             if (i > maxi)
@@ -302,31 +287,31 @@ int main(int argc, char **argv)
         for (i = 0; i <= maxi; i++)
         {
 
-            if ((connfd = clients[i].connfd) < 0)
+            if ((connectionFileDescriptor = clients[i].connectionFileDescriptor) < 0)
             {
                 continue;
             }
 
-            if (FD_ISSET(connfd, &rset))
+            if (FD_ISSET(connectionFileDescriptor, &rset))
             {
                 ssize_t n;
                 char buff[MAXLINE];
                 memset(buff, 0, MAXLINE);
 
-                if ((n = read(connfd, buff, MAXLINE)) == 0)
+                if ((n = read(connectionFileDescriptor, buff, MAXLINE)) == 0)
                 {
                     printf("client closed connection: %s, port %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
 
-                    FD_CLR(connfd, &allset);
-                    clients[i].connfd = -1;
-                    clients[i].logged_in = 0;
+                    FD_CLR(connectionFileDescriptor, &allset);
+                    clients[i].connectionFileDescriptor = -1;
+                    clients[i].signnedIn = 0;
                     strcpy(clients[i].name, "");
-                    close(connfd);
+                    close(connectionFileDescriptor);
                 }
                 else
                 {
 
-                    interpret_request(i, buff);
+                    processReq(i, buff);
                     fflush(stdout);
                 }
             }
