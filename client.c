@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <pthread.h>
+#include <netdb.h>
 
 #define MAXLINE 1000
 #define LISTENQ 1024
@@ -47,16 +48,17 @@ void *readClinetAndWriteInServer(void *arg)
             input[strcspn(input, "\n")] = '\0';
 
             
-            if (write(socketFdConnection, input, strlen(input)) < 0) {
+            if (strcmp(input, "exit") == 0)
+            {
+                exitClientFromCode(socketFdConnection);
+            }
+            else if (write(socketFdConnection, input, strlen(input)) < 0) {
                 perror("write error");
                 exit(1);
             }
 
             
-            if (strcmp(input, "exit") == 0)
-            {
-                exitClientFromCode(socketFdConnection);
-            }
+            
         }
         goto X;
     }
@@ -105,20 +107,36 @@ int createSocket(int domain, int type, int protocol)
 
 void connectToServer(int socketFdConnection, char *ip_address, int port)
 {
-    struct sockaddr_in servaddr;
-    bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(port);
+    struct addrinfo hints, *res, *p;
+    int status;
+    char port_str[6];
+    sprintf(port_str, "%d", port);
 
-    if (inet_pton(AF_INET, ip_address, &servaddr.sin_addr) <= 0) {
-        fprintf(stderr, "gethostbyname error for %s", ip_address);
-    }
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
 
-    if (connect(socketFdConnection, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("connect error");
+    if ((status = getaddrinfo(ip_address, port_str, &hints, &res)) != 0) {
+        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
         exit(1);
     }
+
+    for (p = res; p != NULL; p = p->ai_next) {
+        if (connect(socketFdConnection, p->ai_addr, p->ai_addrlen) == -1) {
+            perror("connect error");
+            continue;
+        }
+        break;
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "failed to connect\n");
+        exit(1);
+    }
+
+    freeaddrinfo(res);
 }
+
 
 void createClientThread(pthread_t *thread, int socketFdConnection)
 {

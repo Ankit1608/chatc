@@ -158,25 +158,29 @@ void decodeRequestRecieved(int ind, char *message)
         case LOGIN:
             if (clients[ind].authenticated == 1)
             {
-                // do nothing
+               
+                sendMessageToSpecificClient(clients[ind].name,"Already Logged in",-1);
             }
             else
             {
                 strcpy(clients[ind].name, tokens[1]);
                 clients[ind].authenticated = 1;
+                printf("Loggedin\n");
             }
-            printf("Loggedin\n");
+            
             break;
         case LOGOUT:
             if (clients[ind].authenticated == 0)
             {
-                // do nothing
+                
+                sendMessageToSpecificClient(clients[ind].name,"Should login to logout",-1);
             }
             else
             {
                 clients[ind].authenticated = 0;
+                printf("Loggedout\n");
             }
-            printf("Loggedout\n");
+            
             break;
         case CHAT:
             if (clients[ind].authenticated == 0)
