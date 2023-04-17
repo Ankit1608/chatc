@@ -267,7 +267,45 @@ int main(int argc, char **argv)
     FD_ZERO(&allset);
     signal(SIGINT, handleTerminationSignal);
 
-    listenfd = setupServer(1234);
+    char line[MAXLINE];
+    char *key, *value;
+    char *delim = ":";
+    FILE *file = fopen("chat_server_configuration_file", "r");
+    if (file == NULL)
+    {
+        printf("Failed to open file.\n");
+        exit(1);
+    }
+    char *keys[1];
+    char *values[1];
+    int count = 0;
+    int servPort;
+
+    do
+    {
+        fgets(line, MAXLINE, file);
+        line[strcspn(line, "\n")] = '\0';
+        key = strtok(line, delim);
+        value = strtok(NULL, delim);
+
+        switch (count)
+        {
+        case 0:
+            if (key != NULL && value != NULL)
+            {
+                keys[count] = strdup(key);
+                values[count] = strdup(value);
+                count++;
+            }
+            break;
+        default:
+            break;
+        }
+    } while (!feof(file));
+
+    servPort = (int)strtol(values[0], (char **)NULL, 10);
+
+    listenfd = setupServer(servPort);
 
     FD_SET(listenfd, &allset);
     maxfd = listenfd;
@@ -339,7 +377,7 @@ int main(int argc, char **argv)
 
                 if ((n = read(connectionFileDescriptor, buff, MAXLINE)) == 0)
                 {
-                    printf("user closed connection: %s, port %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
+                    printf("user closed conn: %s, port %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
 
                     FD_CLR(connectionFileDescriptor, &allset);
                     clients[i].connectionFileDescriptor = -1;
