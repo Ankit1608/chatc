@@ -142,7 +142,7 @@ void login(int ind, char **tokens)
 {
     if (clients[ind].signnedIn == 1)
     {
-        // do nothing if already logged in
+        sendM(clients[ind].name, "Cannot login more than once", -1);
     }
     else
     {
@@ -156,7 +156,7 @@ void logout(int ind)
 {
     if (clients[ind].signnedIn == 0)
     {
-        // do nothing if not logged in
+        sendM(clients[ind].name, "Cannot logout if not logged in", -1);
     }
     else
     {
