@@ -165,6 +165,30 @@ void logout(int ind)
     printf("Signedin\n");
 }
 
+char* concatWords(char** words, int numWords, int startIndex) {
+    // Calculate total length of all words
+    int totalLength = 0;
+    for (int i = startIndex; i < numWords; i++) {
+        totalLength += strlen(words[i]) + 1; // add 1 for space between words
+    }
+
+    // Allocate memory for concatenated string
+    char* result = (char*) malloc(sizeof(char) * (totalLength + 1));
+
+    // Concatenate words with spaces
+    int index = 0;
+    for (int i = startIndex; i < numWords; i++) {
+        strcpy(result + index, words[i]);
+        index += strlen(words[i]);
+        result[index++] = ' '; // add space between words
+    }
+
+    result[totalLength] = '\0';
+
+    return result;
+}
+
+
 void processReq(int ind, char *message)
 {
     char delimiter[] = " ";
@@ -189,10 +213,15 @@ void processReq(int ind, char *message)
         }
         else
         {
-            if (tokens[1][0] == '@')
-                sendM(shiftLeft(tokens[1]), new_message, -1);
-            else
-                sendM("-1", new_message, -1);
+            if (tokens[1][0] == '@'){
+                char* mess= concatWords(tokens, num_tokens, 2);
+                sendM(shiftLeft(tokens[1]),mess, -1);
+            }
+            else{
+                char* mess= concatWords(tokens,num_tokens, 1);
+                sendM("-1", mess, -1);
+
+            }
         }
     }
     else
@@ -200,6 +229,7 @@ void processReq(int ind, char *message)
         printf("Invalid Command\n");
     }
 }
+
 
 void configSocket(int sockfd)
 {
