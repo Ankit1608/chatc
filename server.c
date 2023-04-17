@@ -35,7 +35,7 @@ int max = -1;
 
 void handlingSigintClosingConnections(int sig)
 {
-    printf("SIGINT! Closing all the connections\n");
+    printf("trying to close connections\n");
      for (int i = 0; i <= max; i++)
     {
         if (clients[i].connFdConnection > 0)
@@ -105,7 +105,6 @@ void sendMessageToSpecificClient(char *clientName, char *message, int dest_fd)
             }
             else
             {
-                printf("Sent %d bytes to client %s\n", bytesSent, clients[pointer].name);
                 fflush(stdout);
             }
         }
@@ -132,6 +131,10 @@ int getCommandType(char* command) {
         return INVALID_COMMAND;
     }
 }
+
+
+
+
 
 
 void decodeRequestRecieved(int ind, char *message)
@@ -268,9 +271,35 @@ int main()
     FD_ZERO(&allset);
     signal(SIGINT, handlingSigintClosingConnections);
 
+    char line[MAXLINE];
+    char *key, *value;
+    char *delim = ":";
+    FILE *file = fopen("chat_server_configuration_file", "r");
+    if (file == NULL) {
+        printf("Failed to open file.\n");
+        exit(1);
+    }
+    char *keys[1];
+    char *values[1];
+    int count = 0;
+    int servPort;
+    while (fgets(line, MAXLINE, file) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+        key = strtok(line, delim);
+        value = strtok(NULL, delim);
+        
+        
+        if (key != NULL && value != NULL) {
+            keys[count] = strdup(key);
+            values[count] = strdup(value);
+            count++;
+        }
+    }
+
+    servPort = (int)strtol(values[0], (char **)NULL, 10);
     
 
-    listeningFdConnection = bindAndListenServer(1234);
+    listeningFdConnection = bindAndListenServer(servPort);
 
     FD_SET(listeningFdConnection, &allset);
     maxFdConnections = listeningFdConnection;
@@ -283,16 +312,18 @@ int main()
 
     Z:
     {
+        int one=1;
+        
         rset = allset;
         // should return something
         select(maxFdConnections + 1, &rset, NULL, NULL, NULL);
 
-        if (FD_ISSET(listeningFdConnection, &rset))
+        if (FD_ISSET(listeningFdConnection, &rset)*one)
         {
             clilen = sizeof(cliaddr);
             connFdConnection = accept(listeningFdConnection, (struct sockaddr *)&cliaddr, &clilen);
 
-            for (i = 0; i < FD_SETSIZE; i++)
+            for (i = 0; i < (FD_SETSIZE * one); i++)
             {
                 if (clients[i].connFdConnection < 0)
                 {
@@ -301,7 +332,7 @@ int main()
                 }
             }
 
-            if (i == FD_SETSIZE)
+            if (i == (FD_SETSIZE*one))
             {
                 fprintf(stderr, "too many clients\n");
                 exit(1);
@@ -318,18 +349,18 @@ int main()
                 max = i;
             }
 
-            printf("new client: %s, port %d, clientNumber is %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), max);
+            printf("new client has been connected: %s, port %d, clientNumber is %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), max);
         }
 
-        for (i = 0; i <= max; i++)
+        for (i = 0; i <= (max*one); i++)
         {
 
-            if ((connFdConnection = clients[i].connFdConnection) < 0)
+            if ((connFdConnection = clients[i].connFdConnection) < 0 && one)
             {
                 continue;
             }
 
-            if (FD_ISSET(connFdConnection, &rset))
+            if (FD_ISSET(connFdConnection, &rset) && one)
             {
                 ssize_t n;
                 char buff[MAXLINE];
@@ -337,7 +368,7 @@ int main()
 
                 if ((n = read(connFdConnection, buff, MAXLINE)) == 0)
                 {
-                    printf("client closed connection: %s, port %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
+                    printf("client connection has been closed: %s, port %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
 
                     FD_CLR(connFdConnection, &allset);
                     clients[i].connFdConnection = -1;

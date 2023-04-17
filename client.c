@@ -10,6 +10,7 @@
 #define MAXLINE 1000
 #define LISTENQ 1024
 
+
 void exitClientFromCode(int socketFdConnection)
 {
     close(socketFdConnection);
@@ -107,6 +108,7 @@ int createSocket(int domain, int type, int protocol)
 
 void connectToServer(int socketFdConnection, char *ip_address, int port)
 {
+    
     struct addrinfo hints, *res, *p;
     int status;
     char port_str[6];
@@ -169,13 +171,54 @@ int main(int argc, char **argv)
     pthread_t user_thread, socket_thread;
     
     socketFdConnection = createSocket(AF_INET, SOCK_STREAM, 0);
+
+    char line[MAXLINE];
+    char *key, *value;
+    char *delim = ":";
+    FILE *file = fopen("chat_client_configuration_file", "r");
+    if (file == NULL) {
+        printf("Failed to open file.\n");
+        exit(1);
+    }
+
+
+    char *keys[2];
+    char *values[2];
+    int count = 0;
+    int servPort;
+    char* servhost=NULL;
+
+    while (fgets(line, MAXLINE, file) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+        key = strtok(line, delim);
+        value = strtok(NULL, delim);
+        
+        
+        if (key != NULL && value != NULL) {
+            keys[count] = strdup(key);
+            values[count] = strdup(value);
+            count++;
+        }
+    }
+    if(strcmp(keys[0],"servhost")==0)
+    {
+        servhost=values[0];
+        servPort = (int)strtol(values[1], (char **)NULL, 10);
+        
+    }
+    else{
+        servhost=values[1];
+        servPort = (int)strtol(values[0], (char **)NULL, 10);
+    }
+
     
-    connectToServer(socketFdConnection, "127.0.0.1", 1234);
+   
+    
+    connectToServer(socketFdConnection, servhost, servPort);
     createClientThread(&user_thread, socketFdConnection);
     createSocketThread(&socket_thread, socketFdConnection);
     joinThread(user_thread);
     joinThread(socket_thread);
-
     closeSocket(socketFdConnection);
     return 0;
 }
