@@ -40,19 +40,19 @@ void *readClinetAndWriteInServer(void *arg)
 
     X:
     {
-        // read input from user
+        
         if (fgets(input, MAXLINE, stdin) != NULL)
         {
-            // remove newline character at end of input
+            
             input[strcspn(input, "\n")] = '\0';
 
-            // send input to server
+            
             if (write(sockfd, input, strlen(input)) < 0) {
                 perror("write error");
                 exit(1);
             }
 
-            // check if input is "exit"
+            
             if (strcmp(input, "exit") == 0)
             {
                 exitClientFromCode(sockfd);
@@ -69,7 +69,7 @@ void *readFromServerWriteToUser(void *arg)
     ssize_t nread;
     char buf[MAXLINE];
 
-    while (1)
+    Y:
     {
         nread = recv(sockfd, buf, MAXLINE, 0);
 
@@ -89,6 +89,7 @@ void *readFromServerWriteToUser(void *arg)
             printf("%s\n", buf);
             fflush(stdout);
         }
+        goto Y;
     }
 }
 
@@ -149,19 +150,15 @@ int main(int argc, char **argv)
     int sockfd;
     pthread_t user_thread, socket_thread;
 
-    // create a socket
+    
     sockfd = createSocket(AF_INET, SOCK_STREAM, 0);
-    // connect to server
+    
     connectToServer(sockfd, "127.0.0.1", 1234);
-    // create user thread to read input and send to server
     createClientThread(&user_thread, sockfd);
-    // create socket thread to read server response and print to user
     createSocketThread(&socket_thread, sockfd);
-    // join threads
     joinThread(user_thread);
     joinThread(socket_thread);
 
-    // close socket and exit
     closeSocket(sockfd);
     return 0;
 }
